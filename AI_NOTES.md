@@ -11,3 +11,15 @@ I asked AI to give me a step by step guide on how to navigate through github and
 - (at least one correctness or security issue you caught, e.g. a wrong date in an example, an unused import, a rule that didn't match the spec)
 
 AI had difficulty giving me the proper directions for downloading github and integrating github with vs code.
+## Capstone 2
+
+I relied on AI to get through the processes and flows for the prompts but I understood how the process works.
+
+### Issues I found in AI output
+
+- (at least one, e.g. something that didn't match API_SPEC.md, a security gap, a test that didn't really test the rule)
+
+### Known limitations
+
+- The SSE stream accepts the token as `?access_token=` because browsers' EventSource cannot send headers. Query strings can end up in server access logs, so a short-lived token or a cookie would be better in production.
+- Users, requests and notifications live in memory and are lost on restart (PostgreSQL comes on Day 3).
