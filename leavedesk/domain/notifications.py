@@ -33,16 +33,31 @@ class EmailNotifier(Notifier):
 
 
 class InAppNotifier(Notifier):
-    """Keeps an inbox per user; the Day 4 bell icon reads from this."""
+    """Keeps an inbox per user; the API's /notifications endpoints and the Day 4 bell read it."""
 
     def __init__(self) -> None:
         self.inbox: dict[UUID, list[Notification]] = {}
+        # Live listeners (one queue per open SSE connection), per user.
+        self._subscribers: dict[UUID, set[asyncio.Queue[Notification]]] = {}
 
     async def send(self, notification: Notification) -> None:
         self.inbox.setdefault(notification.recipient_id, []).append(notification)
+        for queue in self._subscribers.get(notification.recipient_id, set()):
+            queue.put_nowait(notification)
+
+    def for_user(self, user_id: UUID) -> list[Notification]:
+        return list(self.inbox.get(user_id, []))
 
     def unread_count(self, user_id: UUID) -> int:
         return sum(1 for n in self.inbox.get(user_id, []) if not n.read)
+
+    def subscribe(self, user_id: UUID) -> asyncio.Queue[Notification]:
+        queue: asyncio.Queue[Notification] = asyncio.Queue()
+        self._subscribers.setdefault(user_id, set()).add(queue)
+        return queue
+
+    def unsubscribe(self, user_id: UUID, queue: asyncio.Queue[Notification]) -> None:
+        self._subscribers.get(user_id, set()).discard(queue)
 
 
 class NotificationService:

@@ -1,0 +1,20 @@
+[project]
+name = "leavedesk"
+version = "2.0.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/F: errors, I: import order, B: likely bugs, S: security (bandit)
+select = ["E4", "E7", "E9", "F", "I", "B", "S"]
+ignore = ["B008"]  # FastAPI's Depends() in defaults is intended
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]  # assert and test passwords are fine in tests
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+filterwarnings = ["ignore::DeprecationWarning:starlette.*"]
