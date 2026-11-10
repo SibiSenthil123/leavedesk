@@ -43,11 +43,12 @@ class LeaveService:
         self,
         repo: LeaveRepository,
         policies: dict[LeaveType, LeavePolicy],
-        notifications: NotificationService,
+        notifications: NotificationService | None = None,
         today: Callable[[], date] = date.today,
     ) -> None:
         self.repo = repo
         self.policies = policies
+        # None = the caller sends notifications itself (the API queues them as background tasks).
         self.notifications = notifications
         self.today = today  # injected so the demo and tests control "today"
 
@@ -60,7 +61,7 @@ class LeaveService:
         balance = self.repo.get_balance(request.employee_id, request.leave_type)
         self.policies[request.leave_type].validate(request, days, balance, self.today())
         self.repo.add_request(request)
-        await self.notifications.notify(NotificationEvent.SUBMITTED, request)
+        await self._notify(NotificationEvent.SUBMITTED, request)
         return request
 
     @audit
@@ -73,7 +74,7 @@ class LeaveService:
         balance = self.repo.get_balance(request.employee_id, request.leave_type)
         balance.deduct(days)  # raises InsufficientBalanceError if it ran out meanwhile
         request.status = LeaveStatus.APPROVED
-        await self.notifications.notify(NotificationEvent.APPROVED, request)
+        await self._notify(NotificationEvent.APPROVED, request)
         return request
 
     @audit
@@ -87,7 +88,7 @@ class LeaveService:
             raise ValueError("a rejection needs a reason of at least 5 characters")
         request.rejection_reason = reason.strip()
         request.status = LeaveStatus.REJECTED
-        await self.notifications.notify(NotificationEvent.REJECTED, request)
+        await self._notify(NotificationEvent.REJECTED, request)
         return request
 
     @audit
@@ -98,10 +99,14 @@ class LeaveService:
             raise PermissionDeniedError("only the employee who applied can cancel")
         self._ensure_transition(request, LeaveStatus.CANCELLED)
         request.status = LeaveStatus.CANCELLED
-        await self.notifications.notify(NotificationEvent.CANCELLED, request)
+        await self._notify(NotificationEvent.CANCELLED, request)
         return request
 
     # ---- private helpers -------------------------------------------------
+
+    async def _notify(self, event: NotificationEvent, request: LeaveRequest) -> None:
+        if self.notifications is not None:
+            await self.notifications.notify(event, request)
 
     def _check_overlap(self, new: LeaveRequest) -> None:
         for existing in self.repo.requests_for(new.employee_id):

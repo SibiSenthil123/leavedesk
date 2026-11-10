@@ -20,6 +20,7 @@ class LeaveRepository(Protocol):
     def add_request(self, request: LeaveRequest) -> None: ...
     def get_request(self, request_id: UUID) -> LeaveRequest: ...
     def requests_for(self, employee_id: UUID) -> list[LeaveRequest]: ...
+    def all_employees(self) -> list[Employee]: ...
 
 
 class InMemoryLeaveRepository:
@@ -59,3 +60,6 @@ class InMemoryLeaveRepository:
 
     def requests_for(self, employee_id: UUID) -> list[LeaveRequest]:
         return [r for r in self._requests.values() if r.employee_id == employee_id]
+
+    def all_employees(self) -> list[Employee]:
+        return list(self._employees.values())
