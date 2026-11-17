@@ -55,25 +55,38 @@ class LeaveService:
     @audit
     async def apply(self, request: LeaveRequest) -> LeaveRequest:
         """Validate and store a new PENDING request, then notify the manager."""
-        self.repo.get_employee(request.employee_id)  # NotFoundError if unknown
-        days = working_days(request.start, request.end, request.half_day)
-        self._check_overlap(request)
-        balance = self.repo.get_balance(request.employee_id, request.leave_type)
-        self.policies[request.leave_type].validate(request, days, balance, self.today())
-        self.repo.add_request(request)
+        # One unit of work = one database transaction: all of it is saved, or none.
+        with self.repo.unit_of_work():
+            self.repo.get_employee(request.employee_id)  # NotFoundError if unknown
+            days = working_days(request.start, request.end, request.half_day)
+            self._check_overlap(request)
+            balance = self.repo.get_balance(request.employee_id, request.leave_type)
+            self.policies[request.leave_type].validate(
+                request, days, balance, self.today()
+            )
+            self.repo.add_request(request)
+            self.repo.add_outbox(NotificationEvent.SUBMITTED, request.id)
         await self._notify(NotificationEvent.SUBMITTED, request)
         return request
 
     @audit
     async def approve(self, request_id: UUID, manager_id: UUID) -> LeaveRequest:
         """Manager approves: re-check balance, deduct it, notify the employee."""
-        request = self.repo.get_request(request_id)
-        self._ensure_manager_of(request, manager_id)
-        self._ensure_transition(request, LeaveStatus.APPROVED)
-        days = working_days(request.start, request.end, request.half_day)
-        balance = self.repo.get_balance(request.employee_id, request.leave_type)
-        balance.deduct(days)  # raises InsufficientBalanceError if it ran out meanwhile
-        request.status = LeaveStatus.APPROVED
+        with self.repo.unit_of_work():
+            # for_update=True locks the row: a second manager clicking at the same
+            # moment waits here, then sees APPROVED and gets InvalidTransitionError.
+            request = self.repo.get_request(request_id, for_update=True)
+            self._ensure_manager_of(request, manager_id)
+            self._ensure_transition(request, LeaveStatus.APPROVED)
+            days = working_days(request.start, request.end, request.half_day)
+            balance = self.repo.get_balance(
+                request.employee_id, request.leave_type, for_update=True
+            )
+            balance.deduct(days)  # InsufficientBalanceError if it ran out meanwhile
+            self.repo.record_deduction(balance, days, request.id)
+            request.status = LeaveStatus.APPROVED
+            self.repo.save_request(request)
+            self.repo.add_outbox(NotificationEvent.APPROVED, request.id)
         await self._notify(NotificationEvent.APPROVED, request)
         return request
 
@@ -81,24 +94,30 @@ class LeaveService:
     async def reject(
         self, request_id: UUID, manager_id: UUID, reason: str
     ) -> LeaveRequest:
-        request = self.repo.get_request(request_id)
-        self._ensure_manager_of(request, manager_id)
-        self._ensure_transition(request, LeaveStatus.REJECTED)
-        if len(reason.strip()) < 5:
-            raise ValueError("a rejection needs a reason of at least 5 characters")
-        request.rejection_reason = reason.strip()
-        request.status = LeaveStatus.REJECTED
+        with self.repo.unit_of_work():
+            request = self.repo.get_request(request_id, for_update=True)
+            self._ensure_manager_of(request, manager_id)
+            self._ensure_transition(request, LeaveStatus.REJECTED)
+            if len(reason.strip()) < 5:
+                raise ValueError("a rejection needs a reason of at least 5 characters")
+            request.rejection_reason = reason.strip()
+            request.status = LeaveStatus.REJECTED
+            self.repo.save_request(request)
+            self.repo.add_outbox(NotificationEvent.REJECTED, request.id)
         await self._notify(NotificationEvent.REJECTED, request)
         return request
 
     @audit
     async def cancel(self, request_id: UUID, employee_id: UUID) -> LeaveRequest:
         """Only the owner can cancel, and only while it is still PENDING."""
-        request = self.repo.get_request(request_id)
-        if request.employee_id != employee_id:
-            raise PermissionDeniedError("only the employee who applied can cancel")
-        self._ensure_transition(request, LeaveStatus.CANCELLED)
-        request.status = LeaveStatus.CANCELLED
+        with self.repo.unit_of_work():
+            request = self.repo.get_request(request_id, for_update=True)
+            if request.employee_id != employee_id:
+                raise PermissionDeniedError("only the employee who applied can cancel")
+            self._ensure_transition(request, LeaveStatus.CANCELLED)
+            request.status = LeaveStatus.CANCELLED
+            self.repo.save_request(request)
+            self.repo.add_outbox(NotificationEvent.CANCELLED, request.id)
         await self._notify(NotificationEvent.CANCELLED, request)
         return request
 
