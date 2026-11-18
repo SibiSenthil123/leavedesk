@@ -11,6 +11,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY alembic.ini .
+COPY alembic ./alembic
 COPY leavedesk ./leavedesk
 
 # Don't run as root inside the container.
@@ -18,4 +20,5 @@ RUN useradd --create-home appuser
 USER appuser
 
 EXPOSE 8000
-CMD ["uvicorn", "leavedesk.api.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
+# Build/update the tables first, then start the API.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn leavedesk.api.main:create_app --factory --host 0.0.0.0 --port 8000"]
