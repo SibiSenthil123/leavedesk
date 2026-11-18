@@ -1,10 +1,16 @@
 # docker compose up --build   ->  API on http://localhost:8000/docs
+# docker compose up -d db     ->  only the database (for running the API with uvicorn)
+x-database-url: &database-url
+  LEAVEDESK_DATABASE_URL: postgresql+psycopg://leavedesk:${POSTGRES_PASSWORD:-leavedesk-dev-only}@db:5432/leavedesk
+
 services:
   api:
     build: .
     ports:
       - "8000:8000"
     env_file: .env          # copy .env.example to .env first
+    environment:
+      <<: *database-url     # inside Docker the database is called "db", not localhost
     depends_on:
       db:
         condition: service_healthy
@@ -14,8 +20,17 @@ services:
       timeout: 3s
       retries: 3
 
-  # PostgreSQL is not used yet (Day 2 keeps data in memory). It is here so
-  # Day 3 only has to point the API at it.
+  # The postman: sends the emails waiting in the notification_outbox table.
+  worker:
+    build: .
+    command: ["python", "-m", "leavedesk.worker"]
+    env_file: .env
+    environment:
+      <<: *database-url
+    depends_on:
+      api:
+        condition: service_healthy   # the api runs the migrations first
+
   db:
     image: postgres:17
     environment:
@@ -23,7 +38,7 @@ services:
       POSTGRES_USER: leavedesk
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-leavedesk-dev-only}
     ports:
-      - "5433:5432"
+      - "5433:5432"   # 5433 on your Mac (5432 is taken by another PostgreSQL), 5432 inside Docker
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
