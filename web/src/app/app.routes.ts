@@ -5,7 +5,12 @@ import { LoginPage } from './features/login/login.page';
 
 export const routes: Routes = [
   { path: 'login', component: LoginPage, title: 'Log in · LeaveDesk' },
-  // The home page arrives in PR3. For now: logged in -> an empty page under the top bar.
-  { path: '', canMatch: [authGuard], children: [] },
+  {
+    path: '',
+    canMatch: [authGuard],
+    // Lazy loading: this page's code is only downloaded when it is opened.
+    loadComponent: () => import('./features/leave/my-leave.page').then((m) => m.MyLeavePage),
+    title: 'My leave · LeaveDesk',
+  },
   { path: '**', redirectTo: '' },
 ];
