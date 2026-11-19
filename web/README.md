@@ -1,59 +1,50 @@
-# Web
+# LeaveDesk web app (Capstone 4)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.3.0.
+The Angular front end for the LeaveDesk API. See [UI_SPEC.md](UI_SPEC.md) for what it does.
 
-## Development server
+## Run it
 
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+You need the API running first (from the repo root: `docker compose up -d`).
 
 ```bash
-ng generate component component-name
+cd web
+npm install
+npm start
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+Open http://localhost:4200 and log in as `priya@leavedesk.dev` (employee) or
+`arjun@leavedesk.dev` (manager) with the demo password.
+
+`npm start` uses `proxy.conf.json`: the browser calls `/api/...` on port 4200 and the
+dev server forwards it to the API on port 8000, so there is no CORS setup to do.
+
+## Check it
 
 ```bash
-ng generate --help
+npx ng test --watch=false
+npx ng lint
+npx prettier --check src
+npx ng build
 ```
 
-## Building
+## Folder map
 
-To build the project run:
-
-```bash
-ng build
+```text
+src/app/
+├── app.ts / app.html / app.css   # top bar + <router-outlet>, opens the live bell after login
+├── app.routes.ts                 # pages, guards, lazy loading
+├── app.config.ts                 # HttpClient + interceptor, router
+├── core/                         # used everywhere
+│   ├── models.ts                 # TypeScript shapes of the API's JSON
+│   ├── auth.service.ts           # token + "who am I" as signals, login/logout
+│   ├── auth.interceptor.ts       # adds the Bearer token, logs out on 401
+│   ├── auth.guard.ts             # authGuard, managerGuard
+│   └── errors.ts                 # turns an HTTP error into a sentence
+├── shared/
+│   └── date-range.validator.ts   # end date must not be before start date
+└── features/
+    ├── login/login.page.ts
+    ├── leave/                    # My leave: store, page, apply form
+    ├── approvals/                # manager queue + confirm dialog (lazy)
+    └── notifications/            # SSE store + bell
 ```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
