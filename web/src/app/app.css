@@ -1,0 +1,34 @@
+.brand {
+  font-weight: 600;
+  margin-right: 16px;
+}
+.spacer {
+  flex: 1;
+}
+.who {
+  font-size: 0.9rem;
+  margin-right: 4px;
+}
+.active {
+  background: var(--mat-sys-secondary-container);
+}
+main {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Phone width (375 px): hide the name, let the toolbar wrap. */
+@media (max-width: 600px) {
+  .who {
+    display: none;
+  }
+  mat-toolbar {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 4px 8px;
+  }
+  .brand {
+    margin-right: 4px;
+  }
+}
