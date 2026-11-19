@@ -9,9 +9,13 @@
         [routerLinkActiveOptions]="{ exact: true }"
         >My leave</a
       >
+      @if (auth.isManager()) {
+        <a mat-button routerLink="/approvals" routerLinkActive="active">Approvals</a>
+      }
     </nav>
     <span class="spacer"></span>
     <span class="who">{{ auth.me()?.name }}</span>
+    <app-notification-bell />
     <button mat-button (click)="auth.logout()">Log out</button>
   }
 </mat-toolbar>

@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, effect, inject, untracked } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -9,6 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTableModule } from '@angular/material/table';
 
 import { LeaveStatus } from '../../core/models';
+import { NotificationStore } from '../notifications/notification.store';
 import { ApplyLeaveForm } from './apply-leave.form';
 import { LeaveStore } from './leave.store';
 
@@ -179,12 +180,18 @@ import { LeaveStore } from './leave.store';
     }
   `,
 })
-export class MyLeavePage implements OnInit {
+export class MyLeavePage {
   readonly store = inject(LeaveStore);
+  private readonly notifications = inject(NotificationStore);
   readonly columns = ['type', 'dates', 'reason', 'status', 'actions'];
 
-  ngOnInit(): void {
-    void this.store.load(); // fetch my requests and balances when the page opens
+  constructor() {
+    // Runs once when the page opens, then again whenever a live notification arrives
+    // (e.g. "your leave was approved"), so the table and balances stay up to date.
+    effect(() => {
+      this.notifications.items(); // reading a signal here = "re-run me when it changes"
+      untracked(() => void this.store.load());
+    });
   }
 
   filter(status: LeaveStatus | ''): void {
